@@ -3,7 +3,7 @@ using System.Web.Http;
 
 namespace MySqlDapperAuth.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     public class ValuesController : ApiController
     {
         // GET api/values

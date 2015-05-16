@@ -1,9 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace MySqlDapperAuth.Models
 {
     // Models used as parameters to AccountController actions.
-
     public class AddExternalLoginBindingModel
     {
         [Required]
@@ -46,6 +46,12 @@ namespace MySqlDapperAuth.Models
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
+
+        [Display(Name = "First Name")]
+        public string FirstName { get; set; }
+
+        [Display(Name = "Last Name")]
+        public string LastName { get; set; }
     }
 
     public class RegisterExternalBindingModel
@@ -78,5 +84,28 @@ namespace MySqlDapperAuth.Models
         [Display(Name = "Confirm new password")]
         [Compare("NewPassword", ErrorMessage = "The new password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
+    }
+
+
+    ///
+    public class CreateRoleBindingModel
+    {
+        [Required]
+        [StringLength(256, ErrorMessage = "The {0} must be at least {2} characters long.", MinimumLength = 2)]
+        [Display(Name = "Role Name")]
+        public string Name { get; set; }
+    }
+
+    public class UsersInRoleModel
+    {
+        public UsersInRoleModel()
+        {
+            EnrolledUsers = new List<string>();
+            RemovedUsers = new List<string>();
+        }
+
+        public string Id { get; set; }
+        public IList<string> EnrolledUsers { get; set; }
+        public IList<string> RemovedUsers { get; set; }
     }
 }

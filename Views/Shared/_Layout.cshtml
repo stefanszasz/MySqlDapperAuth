@@ -81,7 +81,7 @@
                         headers.Authorization = 'Bearer ' + myToken;
                         $.ajax({ type: 'GET', url: '/api/Account/UserInfo', headers: headers })
                          .done(function(innerData) {
-                             $scope.loginMessage = "Logged in as '" + innerData.Email + "'";
+                             $scope.loginMessage = "Logged in as '" + innerData.Email + "'. Name: " + innerData.FirstName + ' ' + innerData.LastName;
                              $scope.$apply();
                             })
                          .error(function (innerError) {
@@ -122,6 +122,8 @@
                 .controller("RegisterController", function ($scope, $http) {
                     $scope.email = '';
                     $scope.password = '';
+                    $scope.firstName = '';
+                    $scope.LastName = '';
                     $scope.confirmPassword = '';
                     $scope.errorMessage = '';
 
@@ -135,6 +137,8 @@
                             email: $scope.email,
                             password: $scope.password,
                             confirmPassword: $scope.confirmPassword,
+                            firstName: $scope.firstName,
+                            lastName: $scope.lastName,
                         };
                         $scope.errorMessage = '';
 
@@ -143,7 +147,7 @@
                             url: '/api/Account/Register',
                             data: loginData
                         }).done(function (data) {
-                            window.location = '/api/Values';
+                            alert('User created successfully. Head over to login...');
                         }).fail(function (data) {
                             $scope.errorMessage = data.responseText;
                             $scope.$apply();

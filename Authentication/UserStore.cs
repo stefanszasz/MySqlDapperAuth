@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
@@ -33,9 +34,21 @@ namespace MySqlDapperAuth.Authentication
 
             return Task.Factory.StartNew(() =>
             {
-                user.UserId = Guid.NewGuid().ToString();
                 using (MySqlConnection connection = BuildNewConnection())
-                    connection.Execute("insert into Users(UserId, UserName, PasswordHash, SecurityStamp, Email) values(@userId, @userName, @passwordHash, @securityStamp, @email)", user);
+                {
+                    connection.Open();
+                    using (var tx = connection.BeginTransaction())
+                    {
+                        var userRole = connection.Query<Role>("select * from Roles where Name = 'User'", transaction:tx).SingleOrDefault();
+                        if (userRole == null)
+                            throw new InvalidDataException("User role not available in the database. It should be.");
+
+                        connection.Execute("insert into Users(Id, UserName, PasswordHash, SecurityStamp, Email, FirstName, LastName) values(@Id, @userName, @passwordHash, @securityStamp, @email, @firstName, @lastName)", user, tx);
+                        connection.Execute("insert into UserRoles(UserId, RoleId) values(@userId, @roleId)", new { userId = user.Id, roleId = userRole.Id }, tx);
+
+                        tx.Commit();
+                    }
+                }
             });
         }
 
@@ -47,23 +60,25 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    connection.Execute("delete from Users where UserId = @userId", new { user.UserId });
+                    connection.Execute("delete from Users where Id = @Id", new { user.Id });
             });
         }
 
-        public virtual Task<User> FindByIdAsync(string userId)
+        public virtual Task<User> FindByIdAsync(string id)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                throw new ArgumentNullException("userId");
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentNullException("id");
 
-            Guid parsedUserId;
-            if (!Guid.TryParse(userId, out parsedUserId))
-                throw new ArgumentOutOfRangeException("userId", string.Format("'{0}' is not a valid GUID.", new { userId }));
+            Guid parsedId;
+            if (!Guid.TryParse(id, out parsedId))
+                throw new ArgumentOutOfRangeException("id", string.Format("'{0}' is not a valid GUID.", new { id }));
 
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    return connection.Query<User>("select * from Users where UserId = @userId", new { userId = parsedUserId }).SingleOrDefault();
+                {
+                    return connection.Query<User>("select * from Users where Id = @Id", new { Id = parsedId }).SingleOrDefault();
+                }
             });
         }
 
@@ -76,8 +91,8 @@ namespace MySqlDapperAuth.Authentication
             {
                 using (MySqlConnection connection = BuildNewConnection())
                 {
-                    var singleOrDefault = connection.Query<User>("select * from Users where LOWER(UserName) = LOWER(@userName)", new { userName }).SingleOrDefault();
-                    return singleOrDefault;
+                    var user = connection.Query<User>("select * from Users where LOWER(UserName) = LOWER(@userName)", new { userName }).SingleOrDefault();
+                    return user;
                 }
             });
         }
@@ -90,7 +105,7 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    connection.Execute("update Users set UserName = @userName, PasswordHash = @passwordHash, SecurityStamp = @securityStamp where UserId = @userId", user);
+                    connection.Execute("update Users set UserName = @userName, PasswordHash = @passwordHash, SecurityStamp = @securityStamp, FirstName = @firstName, LastName = @lastName where Id = @Id", user);
             });
         }
 
@@ -105,8 +120,8 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    connection.Execute("insert into ExternalLogins(ExternalLoginId, UserId, LoginProvider, ProviderKey) values(@externalLoginId, @userId, @loginProvider, @providerKey)",
-                        new { externalLoginId = Guid.NewGuid(), userId = user.UserId, loginProvider = login.LoginProvider, providerKey = login.ProviderKey });
+                    connection.Execute("insert into ExternalLogins(Id, UserId, LoginProvider, ProviderKey) values(@id, @UserId, @loginProvider, @providerKey)",
+                        new { externalLoginId = Guid.NewGuid(), UserId = user.Id, loginProvider = login.LoginProvider, providerKey = login.ProviderKey });
             });
         }
 
@@ -118,7 +133,7 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    return connection.Query<User>("select u.* from Users as u inner join ExternalLogins as l on l.UserId = u.UserId where l.LoginProvider = @loginProvider and l.ProviderKey = @providerKey",
+                    return connection.Query<User>("select u.* from Users as u inner join ExternalLogins as l on l.Id = u.Id where l.LoginProvider = @loginProvider and l.ProviderKey = @providerKey",
                         login).SingleOrDefault();
             });
         }
@@ -131,7 +146,7 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    return (IList<UserLoginInfo>)connection.Query<UserLoginInfo>("select LoginProvider, ProviderKey from ExternalLogins where UserId = @userId", new { user.UserId }).ToList();
+                    return (IList<UserLoginInfo>)connection.Query<UserLoginInfo>("select LoginProvider, ProviderKey from ExternalLogins where Id = @Id", new { user.Id }).ToList();
             });
         }
 
@@ -146,8 +161,8 @@ namespace MySqlDapperAuth.Authentication
             return Task.Factory.StartNew(() =>
             {
                 using (MySqlConnection connection = BuildNewConnection())
-                    connection.Execute("delete from ExternalLogins where UserId = @userId and LoginProvider = @loginProvider and ProviderKey = @providerKey",
-                        new { user.UserId, login.LoginProvider, login.ProviderKey });
+                    connection.Execute("delete from ExternalLogins where Id = @id and LoginProvider = @loginProvider and ProviderKey = @providerKey",
+                        new { user.Id, login.LoginProvider, login.ProviderKey });
             });
         }
 

@@ -1,3 +1,5 @@
+using System;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNet.Identity;
 
@@ -10,18 +12,17 @@ namespace MySqlDapperAuth.Authentication
         public string Email { get; set; }
         public string PasswordHash { get; set; }
         public string SecurityStamp { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
 
-        public string UserId
+        public User()
         {
-            get { return Id; }
-            set { Id = value; }
+            Id = Guid.NewGuid().ToString();
         }
 
-        internal async Task<System.Security.Claims.ClaimsIdentity> GenerateUserIdentityAsync(ApplicationUserManager manager, string authenticationType)
+        internal async Task<ClaimsIdentity> GenerateUserIdentityAsync(ApplicationUserManager manager, string authenticationType)
         {
-            // Note the authenticationType must match the one defined in CookieAuthenticationOptions.AuthenticationType
             var userIdentity = await manager.CreateIdentityAsync(this, authenticationType);
-            // Add custom user claims here
             return userIdentity;
         }
 

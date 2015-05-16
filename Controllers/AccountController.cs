@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -48,25 +49,32 @@ namespace MySqlDapperAuth.Controllers
             }
         }
 
+        public ApplicationRoleManager RoleManager
+        {
+            get { return Request.GetOwinContext().GetUserManager<ApplicationRoleManager>(); }
+        }
+
         public ISecureDataFormat<AuthenticationTicket> AccessTokenFormat { get; private set; }
 
         // GET api/Account/UserInfo
         [HostAuthentication(DefaultAuthenticationTypes.ExternalBearer)]
-        [System.Web.Http.Route("UserInfo")]
-        public UserInfoViewModel GetUserInfo()
+        [Route("UserInfo")]
+        public async Task<UserInfoViewModel> GetUserInfo()
         {
             ExternalLoginData externalLogin = ExternalLoginData.FromIdentity(User.Identity as ClaimsIdentity);
-
+            var user = await UserManager.FindByEmailAsync(User.Identity.Name);
             return new UserInfoViewModel
             {
                 Email = User.Identity.GetUserName(),
+                FirstName = user.FirstName,
+                LastName = user.LastName,
                 HasRegistered = externalLogin == null,
                 LoginProvider = externalLogin != null ? externalLogin.LoginProvider : null
             };
         }
 
         // POST api/Account/Logout
-        [System.Web.Http.Route("Logout")]
+        [Route("Logout")]
         public IHttpActionResult Logout()
         {
             Authentication.SignOut(CookieAuthenticationDefaults.AuthenticationType);
@@ -74,48 +82,30 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // GET api/Account/ManageInfo?returnUrl=%2F&generateState=true
-        [System.Web.Http.Route("ManageInfo")]
-        public async Task<ManageInfoViewModel> GetManageInfo(string returnUrl, bool generateState = false)
+        [Route("ManageInfo")]
+        public async Task<IHttpActionResult> GetManageInfo(string returnUrl, bool generateState = false)
         {
             User user = await UserManager.FindByIdAsync(User.Identity.GetUserId());
-
             if (user == null)
             {
-                return null;
+                return NotFound();
             }
 
-            List<UserLoginInfoViewModel> logins = new List<UserLoginInfoViewModel>();
-            /*
-            foreach (IdentityUserLogin linkedAccount in user.Logins)
-            {
-                logins.Add(new UserLoginInfoViewModel
-                {
-                    LoginProvider = linkedAccount.LoginProvider,
-                    ProviderKey = linkedAccount.ProviderKey
-                });
-            }
+            var logins = new List<UserLoginInfoViewModel>();
 
-            if (user.PasswordHash != null)
-            {
-                logins.Add(new UserLoginInfoViewModel
-                {
-                    LoginProvider = LocalLoginProvider,
-                    ProviderKey = user.UserName,
-                });
-            }
-             */
-
-            return new ManageInfoViewModel
+            return Ok(new ManageInfoViewModel
             {
                 LocalLoginProvider = LocalLoginProvider,
                 Email = user.UserName,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
                 Logins = logins,
                 ExternalLoginProviders = GetExternalLogins(returnUrl, generateState)
-            };
+            });
         }
 
         // POST api/Account/ChangePassword
-        [System.Web.Http.Route("ChangePassword")]
+        [Route("ChangePassword")]
         public async Task<IHttpActionResult> ChangePassword(ChangePasswordBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -135,7 +125,7 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // POST api/Account/SetPassword
-        [System.Web.Http.Route("SetPassword")]
+        [Route("SetPassword")]
         public async Task<IHttpActionResult> SetPassword(SetPasswordBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -154,7 +144,7 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // POST api/Account/AddExternalLogin
-        [System.Web.Http.Route("AddExternalLogin")]
+        [Route("AddExternalLogin")]
         public async Task<IHttpActionResult> AddExternalLogin(AddExternalLoginBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -192,7 +182,7 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // POST api/Account/RemoveLogin
-        [System.Web.Http.Route("RemoveLogin")]
+        [Route("RemoveLogin")]
         public async Task<IHttpActionResult> RemoveLogin(RemoveLoginBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -221,10 +211,10 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // GET api/Account/ExternalLogin
-        [System.Web.Http.OverrideAuthentication]
+        [OverrideAuthentication]
         [HostAuthentication(DefaultAuthenticationTypes.ExternalCookie)]
-        [System.Web.Http.AllowAnonymous]
-        [System.Web.Http.Route("ExternalLogin", Name = "ExternalLogin")]
+        [AllowAnonymous]
+        [Route("ExternalLogin", Name = "ExternalLogin")]
         public async Task<IHttpActionResult> GetExternalLogin(string provider, string error = null)
         {
             if (error != null)
@@ -278,8 +268,8 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // GET api/Account/ExternalLogins?returnUrl=%2F&generateState=true
-        [System.Web.Http.AllowAnonymous]
-        [System.Web.Http.Route("ExternalLogins")]
+        [AllowAnonymous]
+        [Route("ExternalLogins")]
         public IEnumerable<ExternalLoginViewModel> GetExternalLogins(string returnUrl, bool generateState = false)
         {
             IEnumerable<AuthenticationDescription> descriptions = Authentication.GetExternalAuthenticationTypes();
@@ -319,8 +309,8 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // POST api/Account/Register
-        [System.Web.Http.AllowAnonymous]
-        [System.Web.Http.Route("Register")]
+        [AllowAnonymous]
+        [Route("Register")]
         public async Task<IHttpActionResult> Register(RegisterBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -328,7 +318,7 @@ namespace MySqlDapperAuth.Controllers
                 return BadRequest(ModelState);
             }
 
-            var user = new User { UserName = model.Email, Email = model.Email };
+            var user = new User { UserName = model.Email, Email = model.Email, FirstName = model.FirstName, LastName = model.LastName };
 
             IdentityResult result = await UserManager.CreateAsync(user, model.Password);
 
@@ -341,9 +331,9 @@ namespace MySqlDapperAuth.Controllers
         }
 
         // POST api/Account/RegisterExternal
-        [System.Web.Http.OverrideAuthentication]
+        [OverrideAuthentication]
         [HostAuthentication(DefaultAuthenticationTypes.ExternalBearer)]
-        [System.Web.Http.Route("RegisterExternal")]
+        [Route("RegisterExternal")]
         public async Task<IHttpActionResult> RegisterExternal(RegisterExternalBindingModel model)
         {
             if (!ModelState.IsValid)
@@ -370,6 +360,48 @@ namespace MySqlDapperAuth.Controllers
             {
                 return GetErrorResult(result);
             }
+            return Ok();
+        }
+
+        [Authorize(Roles = "Admin")]
+        [Route("user/{id:guid}/roles")]
+        [HttpPut]
+        public async Task<IHttpActionResult> AssignRolesToUser([FromUri] string id, [FromBody] string[] rolesToAssign)
+        {
+            var appUser = await UserManager.FindByIdAsync(id);
+
+            if (appUser == null)
+            {
+                return NotFound();
+            }
+
+            var currentRoles = await UserManager.GetRolesAsync(appUser.Id);
+
+            var rolesNotExists = rolesToAssign.Except(RoleManager.Roles.Select(x => x.Name)).ToArray();
+
+            if (rolesNotExists.Count() > 0)
+            {
+
+                ModelState.AddModelError("", string.Format("Roles '{0}' does not exixts in the system", string.Join(",", rolesNotExists)));
+                return BadRequest(ModelState);
+            }
+
+            IdentityResult removeResult = await UserManager.RemoveFromRolesAsync(appUser.Id, currentRoles.ToArray());
+
+            if (!removeResult.Succeeded)
+            {
+                ModelState.AddModelError("", "Failed to remove user roles");
+                return BadRequest(ModelState);
+            }
+
+            IdentityResult addResult = await UserManager.AddToRolesAsync(appUser.Id, rolesToAssign);
+
+            if (!addResult.Succeeded)
+            {
+                ModelState.AddModelError("", "Failed to add user roles");
+                return BadRequest(ModelState);
+            }
+
             return Ok();
         }
 
