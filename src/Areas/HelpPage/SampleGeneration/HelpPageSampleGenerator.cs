@@ -368,8 +368,9 @@ namespace MySqlDapperAuth.Areas.HelpPage
         private static object DefaultSampleObjectFactory(HelpPageSampleGenerator sampleGenerator, Type type)
         {
             // Try to create a default sample object
-            ObjectGenerator objectGenerator = new ObjectGenerator();
-            return objectGenerator.GenerateObject(type);
+            //ObjectGenerator objectGenerator = new ObjectGenerator();
+            //return objectGenerator.GenerateObject(type);
+            return null;
         }
 
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "Handling the failure by returning the original string.")]
