@@ -7,7 +7,7 @@
     @Styles.Render("~/Content/css")
     @Scripts.Render("~/bundles/modernizr")
     <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.3.15/angular.min.js"></script>
-    <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 </head>
     <body ng-controller="LoginController">
         <div class="navbar navbar-inverse navbar-fixed-top">
@@ -38,15 +38,15 @@
             </footer>
         </div>
 
-        @Scripts.Render("~/bundles/jquery")
         @Scripts.Render("~/bundles/bootstrap")
         @RenderSection("scripts", required: false)
         <script>
             var app = angular.module("app", []);
+            var tokenName = 'accessToken_dentapp';
+
              app.controller("LoginController", function ($scope, $http) {
                 $scope.email = '';
                 $scope.password = '';
-                var tokenName = 'accessToken_dentapp';
                 var storedAccessToken = localStorage.getItem(tokenName);
                 $scope.isLoggedIn = storedAccessToken !== null && storedAccessToken !== undefined && storedAccessToken !== "null";
                 $scope.errorMessage = '';
@@ -129,6 +129,7 @@
                     $scope.LastName = '';
                     $scope.confirmPassword = '';
                     $scope.errorMessage = '';
+                    var headers = {};
 
                     $scope.register = function () {
                         if ($scope.password !== $scope.confirmPassword) {
@@ -150,7 +151,33 @@
                             url: '/api/Account/Register',
                             data: loginData
                         }).done(function (data) {
-                            alert('User created successfully. Head over to login...');
+                            var tokenLogin = {
+                                grant_type: 'password',
+                                username: $scope.email,
+                                password: $scope.password
+                            };
+                            $scope.errorMessage = '';
+
+                            $.ajax({
+                                type: 'POST',
+                                dataType: "json",
+                                url: '/Token',
+                                data: tokenLogin
+                            }).done(function (data) {
+                                headers.Authorization = 'Bearer ' + data.access_token;
+                                var url = '/api/Account/User/roles';
+                                $.ajax({
+                                    type: 'PUT',
+                                    url: url,
+                                    data: { role: "User" },
+                                    headers: headers
+                                }).done(function (done) {
+                                    alert('User created successfully. Head over to login...');
+                                }).fail(function (err) {
+                                    alert('error on assigning role');
+                                });
+                            });                                                      
+
                         }).fail(function (data) {
                             $scope.errorMessage = data.responseText;
                             $scope.$apply();

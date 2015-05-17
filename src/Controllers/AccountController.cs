@@ -198,15 +198,14 @@ namespace MySqlDapperAuth.Controllers
                 return GetErrorResult(result);
             }
 
-            return Ok();
+            return Ok(new { model.Email });
         }
 
-        [Authorize(Roles = "Admin")]
-        [Route("user/{id:guid}/roles")]
+        [Route("User/roles")]
         [HttpPut]
-        public async Task<IHttpActionResult> AssignRolesToUser([FromUri] string id, [FromBody] string[] rolesToAssign)
+        public async Task<IHttpActionResult> AssignRolesToUser([FromBody] RoleAssignment data)
         {
-            var appUser = await UserManager.FindByIdAsync(id);
+            var appUser = await UserManager.FindByEmailAsync(User.Identity.Name);
 
             if (appUser == null)
             {
@@ -214,12 +213,11 @@ namespace MySqlDapperAuth.Controllers
             }
 
             var currentRoles = await UserManager.GetRolesAsync(appUser.Id);
-
+            var rolesToAssign = new[] {data.Role};
             var rolesNotExists = rolesToAssign.Except(RoleManager.Roles.Select(x => x.Name)).ToArray();
 
-            if (rolesNotExists.Count() > 0)
+            if (rolesNotExists.Any())
             {
-
                 ModelState.AddModelError("", string.Format("Roles '{0}' does not exixts in the system", string.Join(",", rolesNotExists)));
                 return BadRequest(ModelState);
             }
@@ -339,5 +337,10 @@ namespace MySqlDapperAuth.Controllers
         }
 
         #endregion
+    }
+
+    public class RoleAssignment
+    {
+        public string Role { get; set; }
     }
 }

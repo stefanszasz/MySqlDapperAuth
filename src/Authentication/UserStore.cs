@@ -10,7 +10,7 @@ using MySql.Data.MySqlClient;
 
 namespace MySqlDapperAuth.Authentication
 {
-    public class UserStore : IUserStore<User>, IUserLoginStore<User>, IUserPasswordStore<User>, IUserSecurityStampStore<User>, IUserEmailStore<User>
+    public class UserStore : IUserStore<User>, IUserLoginStore<User>, IUserPasswordStore<User>, IUserSecurityStampStore<User>, IUserEmailStore<User>, IUserRoleStore<User>
     {
         private readonly string connectionString;
 
@@ -36,18 +36,7 @@ namespace MySqlDapperAuth.Authentication
             {
                 using (MySqlConnection connection = BuildNewConnection())
                 {
-                    connection.Open();
-                    using (var tx = connection.BeginTransaction())
-                    {
-                        var userRole = connection.Query<Role>("select * from Roles where Name = 'User'", transaction:tx).SingleOrDefault();
-                        if (userRole == null)
-                            throw new InvalidDataException("User role not available in the database. It should be.");
-
-                        connection.Execute("insert into Users(Id, UserName, PasswordHash, SecurityStamp, Email, FirstName, LastName) values(@Id, @userName, @passwordHash, @securityStamp, @email, @firstName, @lastName)", user, tx);
-                        connection.Execute("insert into UserRoles(UserId, RoleId) values(@userId, @roleId)", new { userId = user.Id, roleId = userRole.Id }, tx);
-
-                        tx.Commit();
-                    }
+                    connection.Execute("insert into Users(Id, UserName, PasswordHash, SecurityStamp, Email, FirstName, LastName) values(@Id, @userName, @passwordHash, @securityStamp, @email, @firstName, @lastName)", user);
                 }
             });
         }
@@ -260,6 +249,76 @@ namespace MySqlDapperAuth.Authentication
         private MySqlConnection BuildNewConnection()
         {
             return new MySqlConnection(connectionString);
+        }
+
+        public Task AddToRoleAsync(User user, string roleName)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                using (MySqlConnection connection = BuildNewConnection())
+                {
+                    var role = connection.Query<Role>("select * from roles where name = @roleName", new { roleName })
+                        .SingleOrDefault();
+                    if (role == null)
+                        throw new InvalidOperationException("Role " + roleName + " should be there");
+
+                    connection.Execute("insert into UserRoles(UserId, RoleId) values(@userId, @roleId)", new { userId = user.Id, roleId = role.Id });
+                }
+            });
+        }
+
+        public Task RemoveFromRoleAsync(User user, string roleName)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                using (MySqlConnection connection = BuildNewConnection())
+                {
+                    var role = connection.Query<Role>("select * from roles where name = @roleName", new { roleName })
+                        .SingleOrDefault();
+                    if (role == null)
+                        throw new InvalidOperationException("Role " + roleName + " should be there");
+
+                    connection.Execute("delete UserRoles where UserId=@userId and RoleId=@roleId", new { userId = user.Id, roleId = role.Id });
+                }
+            });
+        }
+
+        public Task<IList<string>> GetRolesAsync(User user)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                using (MySqlConnection connection = BuildNewConnection())
+                {
+                    var userRoles = connection.Query<dynamic>("select * from UserRoles where UserId = @userId", new { userId = user.Id })
+                                         .ToArray();
+                    if (!userRoles.Any()) 
+                        return new List<string>();
+
+                    var roleNames = userRoles.Select(x => x.RoleId).ToArray();
+                    var roles = connection.Query<Role>("select * from Roles where Id IN (@roleIds)", new { roleIds = roleNames }).ToList();
+                    IList<string> names = roles.Select(x => x.Name).ToList();
+                    return names;
+                }
+            });
+        }
+
+        public Task<bool> IsInRoleAsync(User user, string roleName)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                using (MySqlConnection connection = BuildNewConnection())
+                {
+                    var role = connection.Query<Role>("select * from roles where name = @roleName", new { roleName })
+                        .SingleOrDefault();
+                    if (role == null)
+                        throw new InvalidOperationException("Role " + roleName + " should be there");
+
+                    var existingRoleAssignments = connection.Query<dynamic>("select * from UserRoles where RoleId = @roleId and UserId = @userId",
+                        new {roleId = role.Id, userId = user.Id}).ToList();
+                    bool isAssigned= existingRoleAssignments.Select(x => x.RoleId).Contains(role.Name);
+                    return isAssigned;
+                }
+            });
         }
     }
 }
