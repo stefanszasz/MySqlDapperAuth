@@ -38,6 +38,13 @@ INSERT INTO auth.roles(
   SELECT UUID(),
   "User";
 
+  INSERT INTO auth.roles(
+   Id
+  ,Name
+) 
+  SELECT UUID(),
+  "Doctor";
+
 INSERT INTO auth.roles(
    Id
   ,Name
